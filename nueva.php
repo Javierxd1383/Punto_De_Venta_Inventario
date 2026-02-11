@@ -1,332 +1,266 @@
 <?php
 session_start();
-include 'conexion.php'; // Archivo de conexión a la base de datos
+include 'conexion.php';
 
-// Verificar rol
 if (!isset($_SESSION['rol']) || $_SESSION['rol'] !== 'empleado') {
-    header('Location: login.php');
-    exit();
+  header("Location: login.php");
+  exit();
 }
 
-// Obtener productos
-$query_productos = "SELECT id_producto, nombre, precio, codigo_barras, imagen FROM productos";
-$result_productos = mysqli_query($conn, $query_productos);
-if ($result_productos === false) {
-    die('Error al consultar productos: ' . mysqli_error($conn));
-}
-$productos = mysqli_fetch_all($result_productos, MYSQLI_ASSOC);
-mysqli_close($conn);
+$productos = mysqli_fetch_all(mysqli_query($conn, "SELECT * FROM productos WHERE cantidad_stock > 0"), MYSQLI_ASSOC);
+$clientes = mysqli_fetch_all(mysqli_query($conn, "SELECT * FROM clientes"), MYSQLI_ASSOC);
 ?>
-<!DOCTYPE html>
-<html lang="es">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Sistema de Ventas</title>
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet"/>
-  <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
-  <style>
-    body{background:linear-gradient(135deg,#6a11cb,#2575fc);min-height:100vh;margin:0;padding:20px;color:#333}
-    .container{background:#fff;border-radius:15px;padding:20px;box-shadow:0 10px 30px rgba(0,0,0,.2);max-width:1200px;margin:auto}
-    .product-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:20px}
-    .product-item{background:#f9f9f9;border-radius:10px;padding:15px;text-align:center;box-shadow:0 5px 15px rgba(0,0,0,.1)}
-    .product-item img{width:100%;height:150px;object-fit:cover;border-radius:10px}
-    .cart-table th,.cart-table td{text-align:center}
-    .btn-pay{background:#27ae60;color:#fff;border:none;padding:10px 20px;font-size:18px;border-radius:10px}
-    .btn-pay:hover{background:#219150}
-    .modal-confirmation{display:none;justify-content:center;align-items:center;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.5);z-index:10}
-    .modal-confirmation .content{background:#fff;padding:20px;border-radius:10px;text-align:center}
-    .modal-confirmation.show{display:flex}
-  </style>
-</head>
-<body>
-<div class="container">
-  <h1 class="text-center text-primary mb-4">Sistema de Ventas</h1>
+<?php include 'includes/header.php'; ?>
 
-  <div class="mb-3">
-    <a href="loginempleado.php" class="btn btn-secondary">Regresar al Menú</a>
-    <a href="historial_ventas.php" class="btn btn-outline-primary ms-2">Historial de Ventas</a>
-  </div>
+<div class="container-fluid fade-in h-100" style="min-height: calc(100vh - 80px);">
+  <div class="row h-100 g-4">
 
-  <div class="mb-4">
-    <input type="text" id="search" class="form-control" placeholder="Buscar producto por nombre o código de barras..." oninput="filtrarProductos()">
-  </div>
-
-  <!-- Productos -->
-  <div class="product-grid" id="product-grid">
-    <?php foreach ($productos as $p):
-      $id     = (int)$p['id_producto'];
-      $nombre = (string)$p['nombre'];
-      $precio = is_numeric($p['precio']) ? (float)$p['precio'] : 0.0;
-      $codigo = (string)$p['codigo_barras'];
-      $img    = $p['imagen'] ?: 'imagenes/default.jpg';
-    ?>
-      <div class="product-item"
-           data-nombre="<?= htmlspecialchars(strtolower($nombre)) ?>"
-           data-codigo="<?= htmlspecialchars($codigo) ?>">
-        <img src="<?= htmlspecialchars($img) ?>" alt="<?= htmlspecialchars($nombre) ?>" onerror="this.src='imagenes/default.jpg';">
-        <h5><?= htmlspecialchars($nombre) ?></h5>
-        <p>$<?= number_format($precio, 2) ?></p>
-
-        <svg id="barcode-<?= $id ?>"></svg>
-        <p><?= htmlspecialchars($codigo) ?></p>
-        <script>
-          JsBarcode("#barcode-<?= $id ?>", <?= json_encode($codigo) ?>, {
-            format: "CODE128", width: 2, height: 50, displayValue: false
-          });
-        </script>
-
-        <!-- Botón robusto con data-* (sin onclick) -->
-        <button type="button" class="btn btn-primary btn-add"
-                data-id="<?= $id ?>"
-                data-nombre="<?= htmlspecialchars($nombre, ENT_QUOTES) ?>"
-                data-precio="<?= $precio ?>">
-          Agregar
-        </button>
+    <!-- Left: Catalog -->
+    <div class="col-lg-8">
+      <div class="d-flex justify-content-between align-items-center mb-4 pt-3">
+        <div>
+          <h2 class="fw-bold text-dark mb-1">Nueva Venta</h2>
+          <p class="text-muted mb-0">Selecciona productos para agregar a la orden.</p>
+        </div>
+        <div class="position-relative" style="width: 300px;">
+          <input type="text" id="buscador" class="form-control rounded-pill border-0 shadow-sm ps-5"
+            placeholder="Buscar dulce...">
+          <i class="fa fa-search position-absolute top-50 start-0 translate-middle-y ms-3 text-muted"></i>
+        </div>
       </div>
-    <?php endforeach; ?>
-  </div>
 
-  <!-- Carrito -->
-  <div class="mt-4">
-    <h2>Venta</h2>
-    <table class="table cart-table">
-      <thead>
-        <tr>
-          <th>Producto</th>
-          <th>Cantidad</th>
-          <th>Precio</th>
-          <th>Total</th>
-          <th>Acciones</th>
-        </tr>
-      </thead>
-      <tbody id="cart-body">
-        <tr><td colspan="5">No hay productos en el carrito.</td></tr>
-      </tbody>
-    </table>
-    <div class="d-flex justify-content-between align-items-center">
-      <h3>Total: $<span id="total">0.00</span></h3>
-      <button class="btn btn-pay" onclick="mostrarOpcionesPago()">Cobrar</button>
+      <div class="row g-3" id="listaProductos" style="max-height: 75vh; overflow-y: auto; padding-bottom: 50px;">
+        <?php
+        $placeholders = ['Imagenes/P1.png', 'Imagenes/P2.png', 'Imagenes/P3.jpg', 'Imagenes/P4.jpg', 'Imagenes/P5.jpg', 'Imagenes/P6.png'];
+        $i = 0;
+        foreach ($productos as $p):
+          $img = $placeholders[$i % count($placeholders)];
+          $i++;
+          ?>
+          <div class="col-md-3 col-6 producto-item" data-nombre="<?= strtolower($p['nombre']) ?>">
+            <div class="card h-100 border-0 shadow-sm product-card-hover cursor-pointer"
+              onclick="agregarProducto(<?= $p['id_producto'] ?>, '<?= htmlspecialchars($p['nombre']) ?>', <?= $p['precio'] ?>, <?= $p['cantidad_stock'] ?>)">
+              <div class="card-body p-3 text-center">
+                <div class="bg-light rounded-3 mb-3 d-flex align-items-center justify-content-center"
+                  style="height: 100px;">
+                  <img src="<?= $img ?>" class="img-fluid" style="max-height: 80px;">
+                </div>
+                <h6 class="fw-bold text-dark mb-1 text-truncate"><?= htmlspecialchars($p['nombre']) ?></h6>
+                <div class="d-flex justify-content-between align-items-center mt-2">
+                  <span class="badge bg-light text-muted border"><?= $p['cantidad_stock'] ?> disp.</span>
+                  <span class="text-primary fw-bold">$<?= number_format($p['precio'], 2) ?></span>
+                </div>
+              </div>
+            </div>
+          </div>
+        <?php endforeach; ?>
+      </div>
     </div>
-  </div>
 
-  <!-- Métodos de Pago -->
-  <div class="mt-4" id="metodos-pago" style="display:none;">
-    <h2>Seleccionar Método de Pago</h2>
-    <div class="form-check">
-      <input class="form-check-input" type="radio" id="pago-efectivo" name="metodo-pago" value="efectivo" checked onclick="mostrarInputPago()">
-      <label class="form-check-label" for="pago-efectivo">Efectivo</label>
+    <!-- Right: Cart -->
+    <div class="col-lg-4">
+      <div class="card border-0 shadow-lg h-100 d-flex flex-column">
+        <div class="card-header bg-white border-bottom p-4">
+          <h5 class="fw-bold mb-0 text-primary"><i class="fa fa-shopping-cart me-2"></i>Orden Actual</h5>
+        </div>
+
+        <div class="card-body flex-grow-1 overflow-auto p-0" id="cartBody">
+          <div id="emptyState" class="text-center py-5 mt-5">
+            <div class="bg-light rounded-circle d-inline-flex p-4 mb-3 text-muted">
+              <i class="fa fa-basket-shopping fa-3x"></i>
+            </div>
+            <h6 class="fw-bold text-muted">Tu carrito está vacío</h6>
+            <small class="text-muted">Agrega productos para comenzar</small>
+          </div>
+          <div id="cartItems" class="p-3"></div>
+        </div>
+
+        <div class="card-footer bg-white border-top p-4">
+          <div class="d-flex justify-content-between mb-2">
+            <span class="text-muted">Subtotal</span>
+            <span class="fw-bold" id="subtotalVal">$0.00</span>
+          </div>
+          <div class="d-flex justify-content-between mb-4">
+            <span class="fs-4 fw-bold text-dark">Total</span>
+            <span class="fs-4 fw-bold text-primary" id="totalVal">$0.00</span>
+          </div>
+
+          <div class="mb-3">
+            <select id="clienteSelect"
+              class="form-select rounded-pill border-0 bg-light fw-bold text-muted text-center cursor-pointer">
+              <option value="">-- Cliente General --</option>
+              <?php foreach ($clientes as $c): ?>
+                <option value="<?= $c['id_cliente'] ?>"><?= htmlspecialchars($c['nombre']) ?></option>
+              <?php endforeach; ?>
+            </select>
+          </div>
+
+          <button class="btn btn-primary w-100 py-3 rounded-pill fw-bold shadow-md mb-2" onclick="procesarVenta()">
+            <i class="fa fa-check me-2"></i> Completar Venta
+          </button>
+          <button class="btn btn-light text-danger w-100 py-2 rounded-pill fw-bold" onclick="vaciarCarrito()">
+            Cancelar
+          </button>
+        </div>
+      </div>
     </div>
-    <div class="form-check">
-      <input class="form-check-input" type="radio" id="pago-tarjeta" name="metodo-pago" value="tarjeta" onclick="mostrarInputPago()">
-      <label class="form-check-label" for="pago-tarjeta">Tarjeta</label>
-    </div>
-    <div id="input-efectivo" class="mt-3">
-      <label for="efectivo" class="form-label">Efectivo recibido:</label>
-      <input type="number" id="efectivo" class="form-control" step="0.01" placeholder="Ingrese el efectivo recibido" oninput="calcularCambio()">
-      <h4>Cambio: $<span id="cambio">0.00</span></h4>
-    </div>
-    <div id="input-tarjeta" class="mt-3" style="display:none;">
-      <label for="tarjeta" class="form-label">Monto Pagado con Tarjeta:</label>
-      <input type="number" id="tarjeta" class="form-control" step="0.01" placeholder="Ingrese el monto pagado con tarjeta">
-    </div>
-    <button class="btn btn-success mt-3" onclick="realizarCompra()">Confirmar Pago</button>
   </div>
 </div>
 
-<!-- Modal de confirmación -->
-<div class="modal-confirmation" id="modal-confirmation">
-  <div class="content">
-    <h2>¡Compra Realizada!</h2>
-    <p>Gracias por su compra.</p>
-    <div id="venta-info"></div>
-    <button class="btn btn-primary mt-2" onclick="cerrarModal()">Cerrar</button>
+<!-- Modal Success -->
+<div class="modal fade" id="successModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content border-0 shadow-lg text-center p-4">
+      <div class="mb-3">
+        <div class="bg-success text-white rounded-circle d-inline-flex p-3 shadow-sm">
+          <i class="fa fa-check fa-2x"></i>
+        </div>
+      </div>
+      <h4 class="fw-bold mb-2">¡Venta Exitosa!</h4>
+      <p class="text-muted">La venta se ha registrado correctamente.</p>
+      <button class="btn btn-primary px-5 rounded-pill" data-bs-dismiss="modal"
+        onclick="location.reload()">Aceptar</button>
+    </div>
   </div>
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 <script>
-// ======= Estado =======
-let carrito = [];
+  let carrito = [];
+  const cartItemsContainer = document.getElementById('cartItems');
+  const emptyState = document.getElementById('emptyState');
+  const totalDisplay = document.getElementById('totalVal');
+  const subtotalDisplay = document.getElementById('subtotalVal');
 
-// ======= Render =======
-function actualizarCarrito() {
-  const tbody = document.getElementById('cart-body');
-  tbody.innerHTML = '';
-  let total = 0;
+  // Configuración de audio (opcional, profesional touch)
+  const beep = new Audio('assets/beep.mp3'); // Asegúrate de tener un sonido o quita esto si no.
 
-  carrito.forEach(p => {
-    const subtotal = p.precio * p.cantidad;
-    total += subtotal;
-    const tr = document.createElement('tr');
-    tr.innerHTML = `
-      <td>${escapeHtml(p.nombre)}</td>
-      <td>
-        <button class="btn btn-sm btn-outline-danger" onclick="cambiarCantidad(${p.id}, -1)">-</button>
-        ${p.cantidad}
-        <button class="btn btn-sm btn-outline-success" onclick="cambiarCantidad(${p.id}, 1)">+</button>
-      </td>
-      <td>$${p.precio.toFixed(2)}</td>
-      <td>$${subtotal.toFixed(2)}</td>
-      <td><button class="btn btn-danger btn-sm" onclick="eliminarDelCarrito(${p.id})">Eliminar</button></td>
-    `;
-    tbody.appendChild(tr);
-  });
+  function agregarProducto(id, nombre, precio, stock) {
+    const item = carrito.find(p => p.id === id);
 
-  if (carrito.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="5">No hay productos en el carrito.</td></tr>';
+    if (item) {
+      if (item.cantidad >= stock) {
+        alert('No hay más stock disponible de este producto.');
+        return;
+      }
+      item.cantidad++;
+    } else {
+      carrito.push({ id, nombre, precio, cantidad: 1, stock });
+    }
+    renderCarrito();
   }
 
-  document.getElementById('total').innerText = total.toFixed(2);
-  calcularCambio();
-}
-
-// ======= Carrito =======
-function agregarAlCarrito(id, nombre, precio) {
-  const existente = carrito.find(i => i.id === id);
-  if (existente) {
-    existente.cantidad++;
-  } else {
-    carrito.push({ id, nombre, precio: parseFloat(precio), cantidad: 1 });
-  }
-  actualizarCarrito();
-}
-function cambiarCantidad(id, cambio) {
-  const p = carrito.find(i => i.id === id);
-  if (!p) return;
-  p.cantidad += cambio;
-  if (p.cantidad <= 0) carrito = carrito.filter(i => i.id !== id);
-  actualizarCarrito();
-}
-function eliminarDelCarrito(id) {
-  carrito = carrito.filter(i => i.id !== id);
-  actualizarCarrito();
-}
-
-// ======= Pago UI =======
-function mostrarOpcionesPago() {
-  if (carrito.length === 0) { alert('Agrega productos antes de cobrar.'); return; }
-  document.getElementById('metodos-pago').style.display = 'block';
-}
-function mostrarInputPago() {
-  const efectivo = document.getElementById('input-efectivo');
-  const tarjeta  = document.getElementById('input-tarjeta');
-  if (document.getElementById('pago-efectivo').checked) {
-    efectivo.style.display = 'block'; tarjeta.style.display = 'none';
-  } else {
-    efectivo.style.display = 'none'; tarjeta.style.display = 'block';
-  }
-  calcularCambio();
-}
-function calcularCambio() {
-  const total = parseFloat(document.getElementById('total').innerText) || 0;
-  if (document.getElementById('pago-efectivo').checked) {
-    const efectivo = parseFloat(document.getElementById('efectivo').value) || 0;
-    document.getElementById('cambio').innerText = (efectivo - total).toFixed(2);
-  } else {
-    document.getElementById('cambio').innerText = '0.00';
-  }
-}
-function cerrarModal() {
-  document.getElementById('modal-confirmation').classList.remove('show');
-  const info = document.getElementById('venta-info');
-  if (info) info.innerHTML = '';
-}
-
-// ======= Confirmar compra (función completa) =======
-async function realizarCompra() {
-  const total = parseFloat(document.getElementById('total').innerText) || 0;
-  if (carrito.length === 0 || total <= 0) { alert('No hay productos en el carrito.'); return; }
-
-  const metodo = document.querySelector('input[name="metodo-pago"]:checked')?.value || 'efectivo';
-  let efectivoRecibido = 0, montoTarjeta = 0;
-
-  if (metodo === 'efectivo') {
-    efectivoRecibido = parseFloat(document.getElementById('efectivo').value) || 0;
-    if (efectivoRecibido < total) { alert('El efectivo recibido no puede ser menor que el total.'); return; }
-  } else {
-    montoTarjeta = parseFloat(document.getElementById('tarjeta').value) || 0;
-    if (montoTarjeta < total) { alert('El monto con tarjeta no puede ser menor que el total.'); return; }
-  }
-
-  const payload = {
-    items: carrito.map(p => ({ id_producto: p.id, cantidad: p.cantidad, precio_unitario: p.precio })),
-    total,
-    metodo_pago: metodo,
-    efectivo_recibido: efectivoRecibido,
-    monto_tarjeta: montoTarjeta || 0
-  };
-
-  try {
-    const resp = await fetch('guardar_venta.php', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify(payload),
-      credentials: 'same-origin'
-    });
-
-    // Esperar y parsear JSON
-    const data = await resp.json().catch(() => null);
-
-    if (!resp.ok || !data || !data.ok) {
-      const msg = data && data.message ? data.message : 'Error al guardar la venta.';
-      console.error('Respuesta del servidor:', data);
-      alert(msg);
+  function renderCarrito() {
+    if (carrito.length === 0) {
+      cartItemsContainer.innerHTML = '';
+      emptyState.style.display = 'block';
+      totalDisplay.innerText = '$0.00';
+      subtotalDisplay.innerText = '$0.00';
       return;
     }
 
-    // Éxito: mostrar modal y datos
-    const modal = document.getElementById('modal-confirmation');
-    const info = document.getElementById('venta-info');
-    info.innerHTML = `<p>ID de venta: <strong>${data.id_venta ?? 'N/A'}</strong></p>
-                      <p>Total: <strong>$${total.toFixed(2)}</strong> — Método: <strong>${metodo}</strong></p>`;
-    if (metodo === 'efectivo') {
-      const cambio = (efectivoRecibido - total).toFixed(2);
-      info.innerHTML += `<p>Efectivo recibido: <strong>$${efectivoRecibido.toFixed(2)}</strong> — Cambio: <strong>$${cambio}</strong></p>`;
-    }
-    modal.classList.add('show');
+    emptyState.style.display = 'none';
+    cartItemsContainer.innerHTML = '';
+    let total = 0;
 
-    // Limpiar carrito y UI
-    carrito = [];
-    actualizarCarrito();
-    document.getElementById('metodos-pago').style.display = 'none';
-    const ef = document.getElementById('efectivo'); if (ef) ef.value = '';
-    const tj = document.getElementById('tarjeta');  if (tj) tj.value = '';
-  } catch (e) {
-    console.error(e);
-    alert('No se pudo conectar con el servidor.');
-    return;
+    carrito.forEach((p, index) => {
+      total += p.precio * p.cantidad;
+      const div = document.createElement('div');
+      div.className = 'd-flex justify-content-between align-items-center mb-3 p-3 bg-light rounded-3';
+      div.innerHTML = `
+                <div class="d-flex align-items-center">
+                    <div class="bg-white p-2 rounded-circle shadow-sm me-3 text-primary fw-bold" style="width:35px; height:35px; display:flex; justify-content:center; align-items:center;">
+                        ${p.cantidad}
+                    </div>
+                    <div>
+                        <h6 class="fw-bold mb-0 text-dark">${p.nombre}</h6>
+                        <small class="text-muted">$${p.precio.toFixed(2)} c/u</small>
+                    </div>
+                </div>
+                <div class="d-flex align-items-center">
+                     <span class="fw-bold text-dark me-3">$${(p.precio * p.cantidad).toFixed(2)}</span>
+                     <button class="btn btn-sm btn-outline-danger border-0 rounded-circle" onclick="eliminarItem(${index})"><i class="fa fa-trash"></i></button>
+                </div>
+            `;
+      cartItemsContainer.appendChild(div);
+    });
+
+    totalDisplay.innerText = '$' + total.toFixed(2);
+    subtotalDisplay.innerText = '$' + total.toFixed(2);
   }
-}
 
-// ======= Delegación de click en "Agregar" =======
-document.addEventListener('click', function (e) {
-  const btn = e.target.closest('.btn-add');
-  if (!btn) return;
-  const id = parseInt(btn.dataset.id, 10);
-  const nombre = btn.dataset.nombre || '';
-  const precio = parseFloat(btn.dataset.precio) || 0;
-  agregarAlCarrito(id, nombre, precio);
-});
+  function eliminarItem(index) {
+    carrito.splice(index, 1);
+    renderCarrito();
+  }
 
-// Filtro productos
-function filtrarProductos() {
-  const filtro = (document.getElementById('search').value || '').toLowerCase();
-  document.querySelectorAll('.product-item').forEach(prod => {
-    const nombre = (prod.getAttribute('data-nombre') || '').toLowerCase();
-    const codigo = (prod.getAttribute('data-codigo') || '').toLowerCase();
-    prod.style.display = (nombre.includes(filtro) || codigo.includes(filtro)) ? '' : 'none';
+  function vaciarCarrito() {
+    if (confirm('¿Estás seguro de vaciar el carrito?')) {
+      carrito = [];
+      renderCarrito();
+    }
+  }
+
+  async function procesarVenta() {
+    if (carrito.length === 0) {
+      alert("El carrito está vacío");
+      return;
+    }
+
+    const idCliente = document.getElementById('clienteSelect').value;
+    const total = carrito.reduce((sum, item) => sum + (item.precio * item.cantidad), 0);
+
+    const ventaData = {
+      items: carrito.map(p => ({
+        id_producto: p.id,
+        cantidad: p.cantidad,
+        precio: p.precio
+      })),
+      total: total,
+      id_cliente: idCliente || null, // null si está vacío
+      metodo_pago: 'efectivo' // Por defecto
+    };
+
+    try {
+      const response = await fetch('guardar_venta.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(ventaData)
+      });
+
+      const result = await response.json();
+
+      if (result.ok) {
+        const modal = new bootstrap.Modal(document.getElementById('successModal'));
+        modal.show();
+        carrito = [];
+        renderCarrito();
+      } else {
+        alert('Error al procesar la venta: ' + result.message);
+      }
+    } catch (error) {
+      console.error('Error:', error);
+      alert('Hubo un error de conexión al procesar la venta.');
+    }
+  }
+
+  // Buscador
+  document.getElementById('buscador').addEventListener('keyup', function () {
+    let text = this.value.toLowerCase();
+    document.querySelectorAll('.producto-item').forEach(el => {
+      let nombre = el.getAttribute('data-nombre');
+      el.style.display = nombre.includes(text) ? 'block' : 'none';
+    });
   });
-}
-
-// Util: escapar HTML simple para evitar XSS al renderizar nombres desde JS
-function escapeHtml(unsafe) {
-  return String(unsafe)
-       .replace(/&/g, "&amp;")
-       .replace(/</g, "&lt;")
-       .replace(/>/g, "&gt;")
-       .replace(/"/g, "&quot;")
-       .replace(/'/g, "&#039;");
-}
 </script>
-</body>
-</html>
+
+<style>
+  .product-card-hover:hover {
+    transform: translateY(-5px);
+    border: 1px solid var(--primary) !important;
+  }
+
+  .cursor-pointer {
+    cursor: pointer;
+  }
+</style>

@@ -1,69 +1,56 @@
 <?php
 session_start();
-if (!isset($_SESSION['rol']) || $_SESSION['rol'] !== 'empleado') {
+if (!isset($_SESSION['rol']) || $_SESSION['rol'] !== 'administrador') {
     header("Location: login.php");
     exit();
 }
-
-// El @ suprime errores si PHP no tiene permisos para acceder a la información del disco.
-$informacion = [
-    'PHP Version' => phpversion(),
-    'Sistema Operativo' => PHP_OS,
-    'Espacio en Disco Libre' => @round(disk_free_space("/") / 1024 / 1024, 2) . ' MB',
-    'Espacio en Disco Total' => @round(disk_total_space("/") / 1024 / 1024, 2) . ' MB',
-    'Nombre Servidor' => gethostname(),
-    'Dirección IP' => $_SERVER['SERVER_ADDR'],
-];
 ?>
 
-<!DOCTYPE html>
-<html lang="es">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Información del Sistema</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <style>
-        /* Estilos personalizados para el botón de regreso */
-        .btn-back {
-            background-color: #6c757d; /* Color gris estándar de Bootstrap (secondary) */
-            border-color: #6c757d;
-            color: white;
-            transition: background-color 0.3s;
-        }
-        .btn-back:hover {
-            background-color: #5a6268;
-            border-color: #5a6268;
-            color: white;
-        }
-    </style>
-</head>
-<body>
-    <div class="container mt-5">
-        <h1 class="text-center text-primary">Información del Sistema</h1>
+<?php include 'includes/header.php'; ?>
 
-        <div class="d-flex justify-content-start mb-3">
-            <a href="herramientas.php" class="btn btn-back">
-                Regresar a Herramientas
-            </a>
-        </div>
-        
-        <table class="table table-bordered mt-4">
-            <thead>
-                <tr>
-                    <th>Atributo</th>
-                    <th>Valor</th>
-                </tr>
-            </thead>
-            <tbody>
-                <?php foreach ($informacion as $atributo => $valor): ?>
-                    <tr>
-                        <td><?php echo $atributo; ?></td>
-                        <td><?php echo $valor; ?></td>
-                    </tr>
-                <?php endforeach; ?>
-            </tbody>
-        </table>
+<div class="d-flex justify-content-between align-items-center mb-4 fade-in">
+    <div>
+        <h2 class="fw-bold mb-1">Información del Sistema</h2>
+        <p class="text-muted">Detalles técnicos del servidor y la versión.</p>
     </div>
-</body>
-</html>
+</div>
+
+<div class="row g-4 fade-in">
+    <div class="col-md-6">
+        <div class="card-premium p-4 h-100">
+            <h5 class="fw-bold mb-4">Entorno del Servidor</h5>
+            <ul class="list-group list-group-flush">
+                <li class="list-group-item d-flex justify-content-between bg-transparent px-0">
+                    <span class="text-muted">Software</span>
+                    <span class="fw-bold"><?= $_SERVER['SERVER_SOFTWARE'] ?></span>
+                </li>
+                <li class="list-group-item d-flex justify-content-between bg-transparent px-0">
+                    <span class="text-muted">Versión PHP</span>
+                    <span class="badge badge-success"><?= phpversion() ?></span>
+                </li>
+                <li class="list-group-item d-flex justify-content-between bg-transparent px-0">
+                    <span class="text-muted">Dirección IP</span>
+                    <span class="fw-bold font-monospace"><?= $_SERVER['REMOTE_ADDR'] ?></span>
+                </li>
+                <li class="list-group-item d-flex justify-content-between bg-transparent px-0">
+                    <span class="text-muted">Base de Datos</span>
+                    <span class="fw-bold">MySQLi (MariaDB)</span>
+                </li>
+            </ul>
+        </div>
+    </div>
+
+    <div class="col-md-6">
+        <div class="card-premium p-4 h-100 d-flex flex-column justify-content-center text-center">
+            <div class="mb-4">
+                <i class="fa-solid fa-layer-group fa-4x text-primary mb-3"></i>
+                <h3 class="fw-bold">Candy PRO</h3>
+                <p class="text-muted">v2.5 Enterprise Edition</p>
+            </div>
+            <p class="small text-muted mb-0">Desarrollado con <i class="fa fa-heart text-danger"></i> para máxima
+                eficiencia.</p>
+        </div>
+    </div>
+</div>
+
+<?php include 'includes/footer.php'; ?>

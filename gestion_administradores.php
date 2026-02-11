@@ -1,18 +1,15 @@
 <?php
 session_start();
-include 'conexion.php'; // Archivo de conexión a la base de datos
+include 'conexion.php';
 
-// Verificar si el usuario tiene el rol de administrador
 if (!isset($_SESSION['rol']) || $_SESSION['rol'] !== 'administrador') {
-    header("Location: login.php"); // Redirige al login si no es administrador
+    header("Location: login.php");
     exit();
 }
 
-// Variables para mensajes
 $success = null;
 $error = null;
 
-// Manejo de operaciones (Agregar, Editar, Eliminar)
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $accion = $_POST['accion'];
     if ($accion === 'agregar') {
@@ -20,13 +17,11 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $usuario = $_POST['usuario'];
         $email = $_POST['email'];
         $contrasena = $_POST['contrasena'];
-
-        $query = "INSERT INTO administradores (nombre, usuario, email, contrasena) 
-                  VALUES ('$nombre', '$usuario', '$email', '$contrasena')";
+        $query = "INSERT INTO administradores (nombre, usuario, email, contrasena) VALUES ('$nombre', '$usuario', '$email', '$contrasena')";
         if (mysqli_query($conn, $query)) {
-            $success = "Administrador agregado correctamente.";
+            $success = "Administrador agregado.";
         } else {
-            $error = "Error al agregar administrador: " . mysqli_error($conn);
+            $error = "Error: " . mysqli_error($conn);
         }
     } elseif ($accion === 'editar') {
         $id_admin = $_POST['id_admin'];
@@ -34,179 +29,179 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $usuario = $_POST['usuario'];
         $email = $_POST['email'];
         $contrasena = $_POST['contrasena'];
-
-        $query = "UPDATE administradores 
-                  SET nombre = '$nombre', usuario = '$usuario', email = '$email', contrasena = '$contrasena' 
-                  WHERE id_admin = $id_admin";
+        $query = "UPDATE administradores SET nombre = '$nombre', usuario = '$usuario', email = '$email', contrasena = '$contrasena' WHERE id_admin = $id_admin";
         if (mysqli_query($conn, $query)) {
-            $success = "Administrador actualizado correctamente.";
+            $success = "Administrador actualizado.";
         } else {
-            $error = "Error al actualizar administrador: " . mysqli_error($conn);
+            $error = "Error: " . mysqli_error($conn);
         }
     } elseif ($accion === 'eliminar') {
         $id_admin = $_POST['id_admin'];
         $query = "DELETE FROM administradores WHERE id_admin = $id_admin";
         if (mysqli_query($conn, $query)) {
-            $success = "Administrador eliminado correctamente.";
+            $success = "Administrador eliminado.";
         } else {
-            $error = "Error al eliminar administrador: " . mysqli_error($conn);
+            $error = "Error: " . mysqli_error($conn);
         }
     }
 }
 
-// Obtener todos los administradores
-$query = "SELECT * FROM administradores";
-$result = mysqli_query($conn, $query);
-$administradores = mysqli_fetch_all($result, MYSQLI_ASSOC);
+$administradores = mysqli_fetch_all(mysqli_query($conn, "SELECT * FROM administradores"), MYSQLI_ASSOC);
 ?>
 
-<!DOCTYPE html>
-<html lang="es">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Gestión de Administradores</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-</head>
-<body>
-    <div class="container mt-5">
-        <h1 class="text-center text-primary">Gestión de Administradores</h1>
+<?php include 'includes/header.php'; ?>
 
-        <!-- Mensajes de éxito o error -->
-        <?php if ($success): ?>
-            <div class="alert alert-success"><?php echo $success; ?></div>
-        <?php elseif ($error): ?>
-            <div class="alert alert-danger"><?php echo $error; ?></div>
-        <?php endif; ?>
+<div class="d-flex justify-content-between align-items-center mb-4 fade-in">
+    <div>
+        <h2 class="fw-bold mb-1">Administradores</h2>
+        <p class="text-muted">Gestión de privilegios elevados.</p>
+    </div>
+    <div class="d-flex gap-2">
+        <a href="gestion_usuarios.php" class="btn btn-light text-muted"><i class="fa fa-arrow-left me-2"></i> Volver</a>
+        <button class="btn btn-primary-gradient" data-bs-toggle="modal" data-bs-target="#modalAdmin">
+            <i class="fa fa-user-plus me-2"></i> Nuevo Admin
+        </button>
+    </div>
+</div>
 
-        <!-- Botón para regresar al menú anterior -->
-        <div class="d-flex justify-content-end mb-4">
-            <a href="gestion_usuarios.php" class="btn btn-secondary">Volver al Menú Anterior</a>
-        </div>
+<?php if ($success): ?>
+    <div class="alert alert-success border-0 bg-success bg-opacity-10 text-success fw-bold"><i
+            class="fa fa-check me-2"></i><?= $success ?></div><?php endif; ?>
+<?php if ($error): ?>
+    <div class="alert alert-danger border-0 bg-danger bg-opacity-10 text-danger fw-bold"><i
+            class="fa fa-times me-2"></i><?= $error ?></div><?php endif; ?>
 
-        <!-- Tabla de administradores -->
-        <table class="table table-striped table-bordered mt-4">
+<div class="card-premium fade-in">
+    <div class="table-responsive">
+        <table class="table-premium align-middle">
             <thead>
                 <tr>
-                    <th>ID</th>
-                    <th>Nombre</th>
-                    <th>Usuario</th>
+                    <th class="ps-4">Usuario</th>
                     <th>Email</th>
-                    <th>Acciones</th>
+                    <th>Rol</th>
+                    <th class="text-end pe-4">Acciones</th>
                 </tr>
             </thead>
             <tbody>
                 <?php foreach ($administradores as $admin): ?>
                     <tr>
-                        <td><?php echo $admin['id_admin']; ?></td>
-                        <td><?php echo $admin['nombre']; ?></td>
-                        <td><?php echo $admin['usuario']; ?></td>
-                        <td><?php echo $admin['email']; ?></td>
-                        <td>
-                            <!-- Botón para editar -->
-                            <button class="btn btn-warning btn-sm" data-bs-toggle="modal" data-bs-target="#editarAdministradorModal" 
-                                onclick="cargarDatosEditar(<?php echo htmlspecialchars(json_encode($admin)); ?>)">Editar</button>
-
-                            <!-- Botón para eliminar -->
-                            <form method="POST" class="d-inline">
-                                <input type="hidden" name="id_admin" value="<?php echo $admin['id_admin']; ?>">
+                        <td class="ps-4">
+                            <div class="d-flex align-items-center">
+                                <div class="bg-primary text-white rounded-circle d-flex align-items-center justify-content-center me-3"
+                                    style="width: 35px; height: 35px;">
+                                    <?= strtoupper(substr($admin['nombre'], 0, 1)) ?>
+                                </div>
+                                <div>
+                                    <h6 class="mb-0 fw-bold text-dark"><?= htmlspecialchars($admin['nombre']) ?></h6>
+                                    <small class="text-muted">@<?= htmlspecialchars($admin['usuario']) ?></small>
+                                </div>
+                            </div>
+                        </td>
+                        <td class="text-muted"><?= htmlspecialchars($admin['email']) ?></td>
+                        <td><span class="badge badge-warning">Super Admin</span></td>
+                        <td class="text-end pe-4">
+                            <button class="btn btn-sm btn-light text-primary" onclick='editar(<?= json_encode($admin) ?>)'
+                                data-bs-toggle="modal" data-bs-target="#modalEditar">
+                                <i class="fa fa-edit"></i>
+                            </button>
+                            <form method="POST" class="d-inline" onsubmit="return confirm('¿Eliminar administrador?');">
+                                <input type="hidden" name="id_admin" value="<?= $admin['id_admin'] ?>">
                                 <input type="hidden" name="accion" value="eliminar">
-                                <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('¿Estás seguro de eliminar este administrador?')">Eliminar</button>
+                                <button class="btn btn-sm btn-light text-danger"><i class="fa fa-trash"></i></button>
                             </form>
                         </td>
                     </tr>
                 <?php endforeach; ?>
             </tbody>
         </table>
-
-        <!-- Botón para agregar administrador -->
-        <button class="btn btn-primary mt-3" data-bs-toggle="modal" data-bs-target="#agregarAdministradorModal">Agregar Administrador</button>
     </div>
+</div>
 
-    <!-- Modal para agregar administrador -->
-    <div class="modal fade" id="agregarAdministradorModal" tabindex="-1" aria-labelledby="agregarAdministradorModalLabel" aria-hidden="true">
-        <div class="modal-dialog">
-            <div class="modal-content">
+<!-- Modal Agregar -->
+<div class="modal fade" id="modalAdmin" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg" style="border-radius: 20px;">
+            <div class="modal-header border-0 p-4">
+                <h5 class="modal-title fw-bold">Nuevo Administrador</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-4 pt-0">
                 <form method="POST">
-                    <div class="modal-header">
-                        <h5 class="modal-title" id="agregarAdministradorModalLabel">Agregar Administrador</h5>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    <input type="hidden" name="accion" value="agregar">
+                    <div class="mb-3">
+                        <label class="fw-bold small text-muted text-uppercase mb-1">Nombre</label>
+                        <input type="text" class="form-control form-control-lg bg-light border-0" name="nombre"
+                            required>
                     </div>
-                    <div class="modal-body">
-                        <input type="hidden" name="accion" value="agregar">
-                        <div class="mb-3">
-                            <label for="nombre" class="form-label">Nombre</label>
-                            <input type="text" class="form-control" name="nombre" required>
-                        </div>
-                        <div class="mb-3">
-                            <label for="usuario" class="form-label">Usuario</label>
-                            <input type="text" class="form-control" name="usuario" required>
-                        </div>
-                        <div class="mb-3">
-                            <label for="email" class="form-label">Email</label>
-                            <input type="email" class="form-control" name="email" required>
-                        </div>
-                        <div class="mb-3">
-                            <label for="contrasena" class="form-label">Contraseña</label>
-                            <input type="password" class="form-control" name="contrasena" required>
-                        </div>
+                    <div class="mb-3">
+                        <label class="fw-bold small text-muted text-uppercase mb-1">Usuario</label>
+                        <input type="text" class="form-control form-control-lg bg-light border-0" name="usuario"
+                            required>
                     </div>
-                    <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                        <button type="submit" class="btn btn-primary">Agregar</button>
+                    <div class="mb-3">
+                        <label class="fw-bold small text-muted text-uppercase mb-1">Email</label>
+                        <input type="email" class="form-control form-control-lg bg-light border-0" name="email"
+                            required>
                     </div>
+                    <div class="mb-4">
+                        <label class="fw-bold small text-muted text-uppercase mb-1">Contraseña</label>
+                        <input type="password" class="form-control form-control-lg bg-light border-0" name="contrasena"
+                            required>
+                    </div>
+                    <button type="submit" class="btn btn-primary-gradient w-100 py-3">Crear Cuenta</button>
                 </form>
             </div>
         </div>
     </div>
+</div>
 
-    <!-- Modal para editar administrador -->
-    <div class="modal fade" id="editarAdministradorModal" tabindex="-1" aria-labelledby="editarAdministradorModalLabel" aria-hidden="true">
-        <div class="modal-dialog">
-            <div class="modal-content">
+<!-- Modal Editar (Clone) -->
+<div class="modal fade" id="modalEditar" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg" style="border-radius: 20px;">
+            <div class="modal-header border-0 p-4">
+                <h5 class="modal-title fw-bold">Editar Administrador</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-4 pt-0">
                 <form method="POST">
-                    <div class="modal-header">
-                        <h5 class="modal-title" id="editarAdministradorModalLabel">Editar Administrador</h5>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    <input type="hidden" name="accion" value="editar">
+                    <input type="hidden" name="id_admin" id="edit_id">
+                    <div class="mb-3">
+                        <label class="fw-bold small text-muted text-uppercase mb-1">Nombre</label>
+                        <input type="text" class="form-control form-control-lg bg-light border-0" name="nombre"
+                            id="edit_nombre" required>
                     </div>
-                    <div class="modal-body">
-                        <input type="hidden" name="accion" value="editar">
-                        <input type="hidden" name="id_admin" id="editarIdAdmin">
-                        <div class="mb-3">
-                            <label for="nombre" class="form-label">Nombre</label>
-                            <input type="text" class="form-control" name="nombre" id="editarNombre" required>
-                        </div>
-                        <div class="mb-3">
-                            <label for="usuario" class="form-label">Usuario</label>
-                            <input type="text" class="form-control" name="usuario" id="editarUsuario" required>
-                        </div>
-                        <div class="mb-3">
-                            <label for="email" class="form-label">Email</label>
-                            <input type="email" class="form-control" name="email" id="editarEmail" required>
-                        </div>
-                        <div class="mb-3">
-                            <label for="contrasena" class="form-label">Contraseña</label>
-                            <input type="password" class="form-control" name="contrasena" id="editarContrasena" required>
-                        </div>
+                    <div class="mb-3">
+                        <label class="fw-bold small text-muted text-uppercase mb-1">Usuario</label>
+                        <input type="text" class="form-control form-control-lg bg-light border-0" name="usuario"
+                            id="edit_usuario" required>
                     </div>
-                    <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                        <button type="submit" class="btn btn-warning">Actualizar</button>
+                    <div class="mb-3">
+                        <label class="fw-bold small text-muted text-uppercase mb-1">Email</label>
+                        <input type="email" class="form-control form-control-lg bg-light border-0" name="email"
+                            id="edit_email" required>
                     </div>
+                    <div class="mb-4">
+                        <label class="fw-bold small text-muted text-uppercase mb-1">Contraseña</label>
+                        <input type="password" class="form-control form-control-lg bg-light border-0" name="contrasena"
+                            id="edit_pass" required>
+                    </div>
+                    <button type="submit" class="btn btn-primary-gradient w-100 py-3">Actualizar Cuenta</button>
                 </form>
             </div>
         </div>
     </div>
+</div>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    <script>
-        function cargarDatosEditar(admin) {
-            document.getElementById('editarIdAdmin').value = admin.id_admin;
-            document.getElementById('editarNombre').value = admin.nombre;
-            document.getElementById('editarUsuario').value = admin.usuario;
-            document.getElementById('editarEmail').value = admin.email;
-            document.getElementById('editarContrasena').value = admin.contrasena;
-        }
-    </script>
-</body>
-</html>
+<script>
+    function editar(data) {
+        document.getElementById('edit_id').value = data.id_admin;
+        document.getElementById('edit_nombre').value = data.nombre;
+        document.getElementById('edit_usuario').value = data.usuario;
+        document.getElementById('edit_email').value = data.email;
+        document.getElementById('edit_pass').value = data.contrasena;
+    }
+</script>
+
+<?php include 'includes/footer.php'; ?>

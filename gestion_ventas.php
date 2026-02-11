@@ -1,289 +1,87 @@
 <?php
 session_start();
-include 'conexion.php'; // Archivo de conexión a la base de datos
+include 'conexion.php';
 
-// Verificar si el usuario tiene el rol de administrador
 if (!isset($_SESSION['rol']) || $_SESSION['rol'] !== 'administrador') {
-    header("Location: login.php"); // Redirige al login si no es administrador
+    header("Location: login.php");
     exit();
 }
-
-// Inicializar variables para evitar errores
-$success = null;
-$error = null;
-$ventas = []; // Inicializamos como un array vacío
-$clientes = [];
-$empleados = [];
-
-// Manejo de operaciones (Agregar, Eliminar) con CONSULTAS PREPARADAS
-if ($_SERVER["REQUEST_METHOD"] == "POST") {
-    $accion = $_POST['accion'] ?? '';
-
-    if ($accion === 'agregar') {
-        $id_cliente = $_POST['id_cliente'] ?? null;
-        $id_empleado = $_POST['id_empleado'] ?? null;
-        $metodo_pago = $_POST['metodo_pago'] ?? '';
-        $total = $_POST['total'] ?? 0;
-
-        // Validar que los campos no estén vacíos
-        if ($id_cliente && $id_empleado && $metodo_pago && $total > 0) {
-            
-            // *** MEJORA DE SEGURIDAD (CONSULTA PREPARADA) ***
-            $query = "INSERT INTO ventas (id_cliente, id_empleado, metodo_pago, total, fecha) 
-                      VALUES (?, ?, ?, ?, NOW())";
-            
-            // Preparamos la consulta
-            $stmt = mysqli_prepare($conn, $query);
-            
-            // 'iisd' significa: (i)nteger, (i)nteger, (s)tring, (d)ouble
-            // Vinculamos las variables a los marcadores de posición (?)
-            mysqli_stmt_bind_param($stmt, 'iisd', $id_cliente, $id_empleado, $metodo_pago, $total);
-            
-            // Ejecutamos la consulta
-            if (mysqli_stmt_execute($stmt)) {
-                $success = "Venta agregada correctamente.";
-            } else {
-                $error = "Error al agregar venta: " . mysqli_stmt_error($stmt);
-            }
-            // Cerramos la sentencia
-            mysqli_stmt_close($stmt);
-
-        } else {
-            $error = "Todos los campos son obligatorios para agregar una venta.";
-        }
-
-    } elseif ($accion === 'eliminar') {
-        $id_venta = $_POST['id_venta'] ?? null;
-
-        if ($id_venta) {
-
-            // *** MEJORA DE SEGURIDAD (CONSULTA PREPARADA) ***
-            $query = "DELETE FROM ventas WHERE id_venta = ?";
-            
-            $stmt = mysqli_prepare($conn, $query);
-            
-            // 'i' significa: (i)nteger
-            mysqli_stmt_bind_param($stmt, 'i', $id_venta);
-            
-            if (mysqli_stmt_execute($stmt)) {
-                $success = "Venta eliminada correctamente.";
-            } else {
-                $error = "Error al eliminar venta: " . mysqli_stmt_error($stmt);
-            }
-            mysqli_stmt_close($stmt);
-
-        } else {
-            $error = "ID de venta inválido.";
-        }
-    }
-}
-
-// --- OBTENCIÓN DE DATOS PARA MOSTRAR ---
-
-// Obtener todas las ventas (Esta consulta es segura, no usa variables del usuario)
-$query_ventas = "SELECT v.id_venta, v.fecha, v.total, v.metodo_pago, 
-                        c.nombre AS cliente, e.nombre AS empleado 
-                 FROM ventas v
-                 JOIN clientes c ON v.id_cliente = c.id_cliente
-                 JOIN empleados e ON v.id_empleado = e.id_empleado
-                 ORDER BY v.id_venta DESC"; // Ordenar para ver las más nuevas primero
-$result_ventas = mysqli_query($conn, $query_ventas);
-
-if ($result_ventas) {
-    $ventas = mysqli_fetch_all($result_ventas, MYSQLI_ASSOC);
-} else {
-    $error = "Error al cargar las ventas: " . mysqli_error($conn);
-}
-
-// Obtener los clientes para el formulario modal
-$query_clientes = "SELECT id_cliente, nombre FROM clientes";
-$result_clientes = mysqli_query($conn, $query_clientes);
-if ($result_clientes) {
-    $clientes = mysqli_fetch_all($result_clientes, MYSQLI_ASSOC);
-}
-
-// Obtener los empleados para el formulario modal
-$query_empleados = "SELECT id_empleado, nombre FROM empleados";
-$result_empleados = mysqli_query($conn, $query_empleados);
-if ($result_empleados) {
-    $empleados = mysqli_fetch_all($result_empleados, MYSQLI_ASSOC);
-}
+// Load data
+$ventas = mysqli_fetch_all(mysqli_query($conn, "SELECT v.*, c.nombre as cliente, e.nombre as empleado FROM ventas v JOIN clientes c ON v.id_cliente=c.id_cliente JOIN empleados e ON v.id_empleado=e.id_empleado ORDER BY v.id_venta DESC"), MYSQLI_ASSOC);
 ?>
 
-<!DOCTYPE html>
-<html lang="es">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Gestión de Ventas</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <style>
-        body {
-            background: linear-gradient(135deg, #a29bfe, #6c5ce7);
-            min-height: 100vh;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            padding: 20px;
-            color: #333;
-        }
-        .container {
-            background-color: #fff;
-            border-radius: 15px;
-            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
-            padding: 20px 30px;
-            max-width: 1200px;
-            width: 100%;
-        }
-        h1 {
-            color: #6c5ce7;
-            font-weight: bold;
-            text-align: center;
-            margin-bottom: 20px;
-        }
-        .btn-primary {
-            background-color: #6c5ce7;
-            border: none;
-            border-radius: 25px;
-            transition: all 0.3s ease;
-        }
-        .btn-primary:hover {
-            background-color: #5a4dcf;
-        }
-        .btn-secondary {
-            border-radius: 25px;
-            background-color: #dfe6e9;
-            color: #333;
-            border: none;
-            transition: all 0.3s ease;
-        }
-        .btn-secondary:hover {
-            background-color: #b2bec3;
-        }
-        .btn-danger {
-            border-radius: 25px;
-        }
-        .table {
-            margin-top: 20px;
-            border-radius: 10px;
-            overflow: hidden;
-        }
-        .table th {
-            background-color: #6c5ce7;
-            color: white;
-        }
-        .table tbody tr:hover {
-            background-color: #f4f4f4;
-        }
-        .modal-header {
-            background: #6c5ce7;
-            color: white;
-        }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <h1>Gestión de Ventas</h1>
+<?php include 'includes/header.php'; ?>
 
-        <?php if ($success): ?>
-            <div class="alert alert-success"><?php echo $success; ?></div>
-        <?php elseif ($error): ?>
-            <div class="alert alert-danger"><?php echo $error; ?></div>
-        <?php endif; ?>
+<div class="d-flex justify-content-between align-items-center mb-4 fade-in">
+    <div>
+        <h2 class="fw-bold mb-1">Ventas Realizadas</h2>
+        <p class="text-muted">Registro histórico de transacciones.</p>
+    </div>
+    <div class="d-flex gap-2">
+        <button class="btn btn-light shadow-sm text-primary fw-bold">
+            <i class="fa fa-download me-2"></i> Exportar
+        </button>
+        <button class="btn btn-primary-gradient" data-bs-toggle="modal" data-bs-target="#modalVenta">
+            <i class="fa fa-plus me-2"></i> Nueva Venta
+        </button>
+    </div>
+</div>
 
-        <div class="d-flex justify-content-between align-items-center mb-4">
-            <a href="administrador.php" class="btn btn-secondary">Volver al Menú Anterior</a>
-            <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#agregarVentaModal">Agregar Venta</button>
-        </div>
-
-        <table class="table table-hover table-bordered text-center">
+<div class="card-premium fade-in">
+    <div class="table-responsive">
+        <table class="table-premium align-middle">
             <thead>
                 <tr>
-                    <th>ID</th>
-                    <th>Fecha</th>
-                    <th>Total</th>
-                    <th>Método de Pago</th>
+                    <th class="ps-4">ID Venta</th>
                     <th>Cliente</th>
                     <th>Empleado</th>
-                    <th>Acciones</th>
+                    <th>Fecha</th>
+                    <th>Método</th>
+                    <th>Total</th>
+                    <th class="text-end pe-4">Acciones</th>
                 </tr>
             </thead>
             <tbody>
-                <?php foreach ($ventas as $venta): ?>
+                <?php foreach ($ventas as $v): ?>
                     <tr>
-                        <td><?php echo $venta['id_venta']; ?></td>
-                        <td><?php echo $venta['fecha']; ?></td>
-                        <td>$<?php echo number_format($venta['total'], 2); ?></td>
-                        <td><?php echo $venta['metodo_pago']; ?></td>
-                        <td><?php echo $venta['cliente']; ?></td>
-                        <td><?php echo $venta['empleado']; ?></td>
+                        <td class="ps-4"><span
+                                class="fw-bold text-muted">#<?= str_pad($v['id_venta'], 5, '0', STR_PAD_LEFT) ?></span></td>
                         <td>
-                            <form method="POST" class="d-inline">
-                                <input type="hidden" name="id_venta" value="<?php echo $venta['id_venta']; ?>">
-                                <input type="hidden" name="accion" value="eliminar">
-                                <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('¿Estás seguro de eliminar esta venta?')">Eliminar</button>
-                            </form>
+                            <div class="d-flex align-items-center">
+                                <div class="bg-primary bg-opacity-10 text-primary rounded-circle d-flex align-items-center justify-content-center me-2"
+                                    style="width:30px; height:30px; font-size: 0.8rem;">
+                                    <?= substr($v['cliente'], 0, 1) ?>
+                                </div>
+                                <span class="fw-bold small"><?= $v['cliente'] ?></span>
+                            </div>
+                        </td>
+                        <td class="small text-muted"><?= $v['empleado'] ?></td>
+                        <td class="small text-muted">
+                            <i class="fa fa-calendar me-1"></i> <?= date('d/m/Y', strtotime($v['fecha'])) ?>
+                        </td>
+                        <td>
+                            <?php if ($v['metodo_pago'] == 'Efectivo'): ?>
+                                <span
+                                    class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25 px-3">Efectivo</span>
+                            <?php else: ?>
+                                <span
+                                    class="badge bg-info bg-opacity-10 text-info border border-info border-opacity-25 px-3">Tarjeta</span>
+                            <?php endif; ?>
+                        </td>
+                        <td class="fw-bold text-dark fs-6">$<?= number_format($v['total'], 2) ?></td>
+                        <td class="text-end pe-4">
+                            <button class="btn btn-sm btn-icon text-muted hover-primary">
+                                <i class="fa fa-eye"></i>
+                            </button>
+                            <button class="btn btn-sm btn-icon text-danger">
+                                <i class="fa fa-trash"></i>
+                            </button>
                         </td>
                     </tr>
                 <?php endforeach; ?>
             </tbody>
         </table>
     </div>
+</div>
 
-    <div class="modal fade" id="agregarVentaModal" tabindex="-1" aria-labelledby="agregarVentaModalLabel" aria-hidden="true">
-        <div class="modal-dialog">
-            <div class="modal-content">
-                <form method="POST">
-                    <div class="modal-header">
-                        <h5 class="modal-title" id="agregarVentaModalLabel">Agregar Venta</h5>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                    </div>
-                    <div class="modal-body">
-                        <input type="hidden" name="accion" value="agregar">
-                        
-                        <div class="mb-3">
-                            <label for="id_cliente" class="form-label">Cliente</label>
-                            <select class="form-select" name="id_cliente" required>
-                                <option value="">Selecciona un cliente</option>
-                                <?php foreach ($clientes as $cliente): ?>
-                                    <option value="<?php echo $cliente['id_cliente']; ?>"><?php echo $cliente['nombre']; ?></option>
-                                <?php endforeach; ?>
-                            </select>
-                        </div>
-                        
-                        <div class="mb-3">
-                            <label for="id_empleado" class="form-label">Empleado</label>
-                            <select class="form-select" name="id_empleado" required>
-                                <option value="">Selecciona un empleado</option>
-                                <?php foreach ($empleados as $empleado): ?>
-                                    <option value="<?php echo $empleado['id_empleado']; ?>"><?php echo $empleado['nombre']; ?></option>
-                                <?php endforeach; ?>
-                            </select>
-                        </div>
-                        
-                        <div class="mb-3">
-                            <label for="metodo_pago" class="form-label">Método de Pago</label>
-                            <select class="form-select" name="metodo_pago" required>
-                                <option value="Efectivo">Efectivo</option>
-                                <option value="Tarjeta">Tarjeta</option>
-                                <option value="Transferencia">Transferencia</option>
-                            </select>
-                        </div>
-                        
-                        <div class="mb-3">
-                            <label for="total" class="form-label">Total</label>
-                            <input type="number" class="form-control" name="total" step="0.01" required>
-                        </div>
-                    </div>
-                    <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                        <button type="submit" class="btn btn-primary">Agregar</button>
-                    </div>
-                </form>
-            </div>
-        </div>
-    </div>
-
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-</body>
-</html>
+<?php include 'includes/footer.php'; ?>

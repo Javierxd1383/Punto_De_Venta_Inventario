@@ -1,241 +1,125 @@
 <?php
 session_start();
-// NOTA IMPORTANTE: 'conexion.php' debe usar la conexión orientada a objetos (new mysqli)
-include 'conexion.php'; 
+include 'conexion.php';
 
-// Verificar si el usuario tiene el rol de administrador
+// Validar sesión
 if (!isset($_SESSION['rol']) || $_SESSION['rol'] !== 'administrador') {
     header("Location: login.php");
     exit();
 }
 
-// Inicializar variables
 $success = null;
 $error = null;
-$productos = []; 
 
-// Obtener Categorías
-$query_categorias = "SELECT id_categoria, nombre FROM categorias";
-$result_categorias = mysqli_query($conn, $query_categorias);
-$categorias = $result_categorias ? mysqli_fetch_all($result_categorias, MYSQLI_ASSOC) : [];
-
-// =========================================================================
-// MANEJO DE OPERACIONES (Agregar, Editar, Eliminar)
-// =========================================================================
+// Lógica de Backend
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
-    $accion = $_POST['accion'] ?? ''; 
-
+    $accion = $_POST['accion'];
     if ($accion === 'agregar') {
-        $nombre = trim($_POST['nombre'] ?? '');
-        $descripcion = trim($_POST['descripcion'] ?? '');
-        $precio = floatval($_POST['precio'] ?? 0);
-        $categoria_id = intval($_POST['categoria'] ?? 0);
+        $nombre = $_POST['nombre'];
+        $precio = $_POST['precio'];
+        $stock = $_POST['stock']; // Note: Form sends 'stock', DB needs 'cantidad_stock'
+        $categoria = $_POST['categoria'];
+        $descripcion = $_POST['descripcion'];
 
-        if ($nombre && $descripcion && $precio > 0 && $categoria_id > 0) {
-            $stmt = $conn->prepare("INSERT INTO productos (nombre, descripcion, precio, categoria) VALUES (?, ?, ?, ?)");
-            $stmt->bind_param("ssdi", $nombre, $descripcion, $precio, $categoria_id);
-            
-            if ($stmt->execute()) {
-                $success = "Producto agregado correctamente.";
-            } else {
-                $error = "Error al agregar producto: " . $stmt->error;
-            }
-            $stmt->close();
+        $query = "INSERT INTO productos (nombre, precio, cantidad_stock, categoria, descripcion) VALUES ('$nombre', '$precio', '$stock', '$categoria', '$descripcion')";
+        if (mysqli_query($conn, $query)) {
+            $success = "¡Dulce agregado con éxito!";
         } else {
-            $error = "Todos los campos son obligatorios o tienen un formato inválido.";
+            $error = "Error al agregar: " . mysqli_error($conn);
         }
     } elseif ($accion === 'editar') {
-        $id_producto = intval($_POST['id_producto'] ?? 0);
-        $nombre = trim($_POST['nombre'] ?? '');
-        $descripcion = trim($_POST['descripcion'] ?? '');
-        $precio = floatval($_POST['precio'] ?? 0);
-        $categoria_id = intval($_POST['categoria'] ?? 0);
+        $id = $_POST['id_producto'];
+        $nombre = $_POST['nombre'];
+        $precio = $_POST['precio'];
+        $stock = $_POST['stock'];
+        $categoria = $_POST['categoria'];
+        $descripcion = $_POST['descripcion'];
 
-        if ($id_producto > 0 && $nombre && $descripcion && $precio > 0 && $categoria_id > 0) {
-            $stmt = $conn->prepare("UPDATE productos SET nombre = ?, descripcion = ?, precio = ?, categoria = ? WHERE id_producto = ?");
-            $stmt->bind_param("ssidi", $nombre, $descripcion, $precio, $categoria_id, $id_producto);
-            
-            if ($stmt->execute()) {
-                $success = "Producto actualizado correctamente.";
-            } else {
-                $error = "Error al actualizar producto: " . $stmt->error;
-            }
-            $stmt->close();
+        $query = "UPDATE productos SET nombre='$nombre', precio='$precio', cantidad_stock='$stock', categoria='$categoria', descripcion='$descripcion' WHERE id_producto=$id";
+        if (mysqli_query($conn, $query)) {
+            $success = "¡Dulce actualizado!";
         } else {
-            $error = "Todos los campos son obligatorios o tienen un formato inválido para editar.";
+            $error = "Error al actualizar: " . mysqli_error($conn);
         }
     } elseif ($accion === 'eliminar') {
-        $id_producto = intval($_POST['id_producto'] ?? 0);
-
-        if ($id_producto > 0) {
-            $error_temp = false;
-            
-            // 1. CORRECCIÓN: Eliminar primero las dependencias (detalles_ventas)
-            $stmt_detalles = $conn->prepare("DELETE FROM detalles_ventas WHERE id_producto = ?");
-            
-            if ($stmt_detalles === false) {
-                 $error = "Error al preparar la eliminación de detalles: " . $conn->error;
-                 $error_temp = true;
-            } else {
-                $stmt_detalles->bind_param("i", $id_producto);
-                
-                if (!$stmt_detalles->execute()) {
-                    $error = "Error al eliminar detalles de venta: " . $stmt_detalles->error;
-                    $error_temp = true;
-                }
-                $stmt_detalles->close(); 
-            }
-
-            // 2. Eliminar el producto principal
-            if (!$error_temp) {
-                $stmt_producto = $conn->prepare("DELETE FROM productos WHERE id_producto = ?");
-                
-                if ($stmt_producto === false) {
-                     $error = "Error al preparar la eliminación de producto: " . $conn->error;
-                } else {
-                    $stmt_producto->bind_param("i", $id_producto);
-                    
-                    if ($stmt_producto->execute()) {
-                        if ($stmt_producto->affected_rows > 0) {
-                            $success = "Producto y registros relacionados eliminados correctamente.";
-                        } else {
-                            $error = "Error: No se encontró el producto con ID: " . $id_producto;
-                        }
-                    } else {
-                        $error = "Error al eliminar producto: " . $stmt_producto->error;
-                    }
-                    $stmt_producto->close();
-                }
-            }
+        $id = $_POST['id_producto'];
+        if (mysqli_query($conn, "DELETE FROM productos WHERE id_producto=$id")) {
+            $success = "Dulce eliminado";
         } else {
-            $error = "ID del producto inválido.";
+            $error = "Error al eliminar: " . mysqli_error($conn);
         }
     }
 }
 
-// Obtener todos los productos para la tabla
-$query = "SELECT p.id_producto, p.nombre, p.descripcion, p.precio, p.categoria AS id_categoria, c.nombre AS categoria 
-          FROM productos p 
-          JOIN categorias c ON p.categoria = c.id_categoria";
-$result = mysqli_query($conn, $query);
-
-if ($result) {
-    $productos = mysqli_fetch_all($result, MYSQLI_ASSOC);
-}
+$productos = mysqli_fetch_all(mysqli_query($conn, "SELECT p.*, c.nombre as cat_nombre FROM productos p LEFT JOIN categorias c ON p.categoria = c.id_categoria"), MYSQLI_ASSOC);
+$categorias = mysqli_fetch_all(mysqli_query($conn, "SELECT * FROM categorias"), MYSQLI_ASSOC);
 ?>
 
-<!DOCTYPE html>
-<html lang="es">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Gestión de Productos</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <style>
-        body {
-            background: linear-gradient(135deg, #a29bfe, #6c5ce7);
-            min-height: 100vh;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            padding: 20px;
-            color: #333;
-        }
-        .container {
-            background-color: #fff;
-            border-radius: 15px;
-            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
-            padding: 20px 30px;
-            max-width: 1200px;
-            width: 100%;
-        }
-        h1 {
-            color: #6c5ce7;
-            font-weight: bold;
-            text-align: center;
-            margin-bottom: 20px;
-        }
-        .btn-primary {
-            background-color: #6c5ce7;
-            border: none;
-            border-radius: 25px;
-            transition: all 0.3s ease;
-        }
-        .btn-primary:hover {
-            background-color: #5a4dcf;
-        }
-        .btn-secondary {
-            border-radius: 25px;
-            background-color: #dfe6e9;
-            color: #333;
-            border: none;
-            transition: all 0.3s ease;
-        }
-        .btn-secondary:hover {
-            background-color: #b2bec3;
-        }
-        .btn-warning, .btn-danger {
-            border-radius: 25px;
-        }
-        .table {
-            margin-top: 20px;
-            border-radius: 10px;
-            overflow: hidden;
-        }
-        .table th {
-            background-color: #6c5ce7;
-            color: white;
-        }
-        .table tbody tr:hover {
-            background-color: #f4f4f4;
-        }
-        .modal-header {
-            background: #6c5ce7;
-            color: white;
-        }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <h1>Gestión de Productos</h1>
+<?php include 'includes/header.php'; ?>
 
-        <?php if ($success): ?>
-            <div class="alert alert-success"><?php echo $success; ?></div>
-        <?php elseif ($error): ?>
-            <div class="alert alert-danger"><?php echo $error; ?></div>
-        <?php endif; ?>
+<div class="d-flex justify-content-between align-items-center mb-4 fade-in">
+    <div>
+        <h2 class="fw-bold mb-1 text-dark">Inventario</h2>
+        <p class="text-muted">Gestiona el catálogo de Dulcería Candy.</p>
+    </div>
+    <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#modalProducto">
+        <i class="fa fa-plus me-2"></i> Nuevo Producto
+    </button>
+</div>
 
-        <div class="d-flex justify-content-between align-items-center mb-4">
-            <a href="administrador.php" class="btn btn-secondary">Volver al Menú Anterior</a>
-            <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#agregarProductoModal">Agregar Producto</button>
-        </div>
+<?php if ($success): ?>
+    <div class="alert alert-success border-0 bg-success bg-opacity-10 text-success fw-bold"><i
+            class="fa fa-check me-2"></i><?= $success ?></div><?php endif; ?>
+<?php if ($error): ?>
+    <div class="alert alert-danger border-0 bg-danger bg-opacity-10 text-danger fw-bold"><i
+            class="fa fa-times me-2"></i><?= $error ?></div><?php endif; ?>
 
-        <table class="table table-hover table-bordered text-center">
+<div class="card border-0 shadow-sm rounded-4 fade-in bg-white">
+    <div class="table-responsive">
+        <table class="table-premium w-100">
             <thead>
                 <tr>
-                    <th>ID</th>
-                    <th>Nombre</th>
-                    <th>Descripción</th>
-                    <th>Precio</th>
+                    <th class="ps-4">Producto</th>
                     <th>Categoría</th>
-                    <th>Acciones</th>
+                    <th>Precio</th>
+                    <th>Existencia</th>
+                    <th class="text-end pe-4">Acciones</th>
                 </tr>
             </thead>
             <tbody>
-                <?php foreach ($productos as $producto): ?>
+                <?php foreach ($productos as $p): ?>
                     <tr>
-                        <td><?php echo htmlspecialchars($producto['id_producto']); ?></td>
-                        <td><?php echo htmlspecialchars($producto['nombre']); ?></td>
-                        <td><?php echo htmlspecialchars(substr($producto['descripcion'], 0, 50)) . (strlen($producto['descripcion']) > 50 ? '...' : ''); ?></td>
-                        <td>$<?php echo number_format($producto['precio'], 2); ?></td>
-                        <td><?php echo htmlspecialchars($producto['categoria']); ?></td>
+                        <td class="ps-4">
+                            <h6 class="fw-bold text-dark mb-0"><?= htmlspecialchars($p['nombre']) ?></h6>
+                            <small class="text-muted"><?= htmlspecialchars($p['descripcion']) ?></small>
+                        </td>
+                        <td><span
+                                class="badge bg-light text-dark border rounded-pill px-3"><?= htmlspecialchars($p['cat_nombre'] ?? 'General') ?></span>
+                        </td>
+                        <td class="fw-bold text-dark">$<?= number_format($p['precio'], 2) ?></td>
                         <td>
-                            <button class="btn btn-warning btn-sm" data-bs-toggle="modal" data-bs-target="#editarProductoModal" 
-                                onclick="cargarDatosEditar(<?php echo htmlspecialchars(json_encode($producto)); ?>)">Editar</button>
-                            <form method="POST" class="d-inline" onsubmit="return confirm('¿Estás seguro de eliminar este producto? Se eliminarán también sus detalles de venta asociados.')">
-                                <input type="hidden" name="id_producto" value="<?php echo htmlspecialchars($producto['id_producto']); ?>">
+                            <?php
+                            // Using correct column name check
+                            $stock = isset($p['cantidad_stock']) ? $p['cantidad_stock'] : (isset($p['stock']) ? $p['stock'] : 0);
+                            if ($stock < 10):
+                                ?>
+                                <span class="text-danger fw-bold"><i class="fa fa-arrow-down me-1"></i> <?= $stock ?></span>
+                            <?php else: ?>
+                                <span class="text-success fw-bold"><?= $stock ?></span>
+                            <?php endif; ?>
+                        </td>
+                        <td class="text-end pe-4">
+                            <button class="btn btn-sm btn-outline-primary rounded-circle" style="width:32px; height:32px;"
+                                onclick='editar(<?= json_encode($p) ?>)' data-bs-toggle="modal"
+                                data-bs-target="#modalEditar">
+                                <i class="fa fa-pencil-alt small"></i>
+                            </button>
+                            <form method="POST" class="d-inline"
+                                onsubmit="return confirm('¿Seguro que quieres borrar este artículo?');">
+                                <input type="hidden" name="id_producto" value="<?= $p['id_producto'] ?>">
                                 <input type="hidden" name="accion" value="eliminar">
-                                <button type="submit" class="btn btn-danger btn-sm">Eliminar</button>
+                                <button class="btn btn-sm btn-outline-danger rounded-circle"
+                                    style="width:32px; height:32px;"><i class="fa fa-trash small"></i></button>
                             </form>
                         </td>
                     </tr>
@@ -243,100 +127,114 @@ if ($result) {
             </tbody>
         </table>
     </div>
+</div>
 
-    <div class="modal fade" id="agregarProductoModal" tabindex="-1" aria-labelledby="agregarProductoModalLabel" aria-hidden="true">
-        <div class="modal-dialog">
-            <div class="modal-content">
+<!-- Modal Agregar -->
+<div class="modal fade" id="modalProducto" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg rounded-4">
+            <div class="modal-header border-0 p-4">
+                <h5 class="modal-title fw-bold">Agregar Producto</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-4 pt-0">
                 <form method="POST">
-                    <div class="modal-header">
-                        <h5 class="modal-title" id="agregarProductoModalLabel">Agregar Producto</h5>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    <input type="hidden" name="accion" value="agregar">
+                    <div class="mb-3">
+                        <label class="fw-bold small text-muted mb-1">Nombre</label>
+                        <input type="text" class="form-control bg-light border-0 rounded-3" name="nombre" required>
                     </div>
-                    <div class="modal-body">
-                        <input type="hidden" name="accion" value="agregar">
-                        <div class="mb-3">
-                            <label for="nombre" class="form-label">Nombre</label>
-                            <input type="text" class="form-control" name="nombre" required>
+                    <div class="row">
+                        <div class="col-6 mb-3">
+                            <label class="fw-bold small text-muted mb-1">Precio ($)</label>
+                            <input type="number" step="0.01" class="form-control bg-light border-0 rounded-3"
+                                name="precio" required>
                         </div>
-                        <div class="mb-3">
-                            <label for="descripcion" class="form-label">Descripción</label>
-                            <textarea class="form-control" name="descripcion" rows="3" required></textarea>
-                        </div>
-                        <div class="mb-3">
-                            <label for="precio" class="form-label">Precio</label>
-                            <input type="number" class="form-control" name="precio" id="agregarPrecio" step="0.01" required>
-                        </div>
-                        <div class="mb-3">
-                            <label for="categoria" class="form-label">Categoría</label>
-                            <select class="form-select" name="categoria" required>
-                                <option value="">Selecciona una categoría</option>
-                                <?php foreach ($categorias as $categoria): ?>
-                                    <option value="<?php echo htmlspecialchars($categoria['id_categoria']); ?>"><?php echo htmlspecialchars($categoria['nombre']); ?></option>
-                                <?php endforeach; ?>
-                            </select>
+                        <div class="col-6 mb-3">
+                            <label class="fw-bold small text-muted mb-1">Stock</label>
+                            <input type="number" class="form-control bg-light border-0 rounded-3" name="stock" required>
                         </div>
                     </div>
-                    <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                        <button type="submit" class="btn btn-primary">Agregar</button>
+                    <div class="mb-3">
+                        <label class="fw-bold small text-muted mb-1">Categoría</label>
+                        <select class="form-select bg-light border-0 rounded-3" name="categoria" required>
+                            <?php foreach ($categorias as $c): ?>
+                                <option value="<?= $c['id_categoria'] ?>"><?= $c['nombre'] ?></option>
+                            <?php endforeach; ?>
+                        </select>
                     </div>
+                    <div class="mb-4">
+                        <label class="fw-bold small text-muted mb-1">Descripción</label>
+                        <input type="text" class="form-control bg-light border-0 rounded-3" name="descripcion">
+                    </div>
+                    <button type="submit" class="btn btn-primary w-100 py-2 rounded-pill fw-bold">Guardar
+                        Producto</button>
                 </form>
             </div>
         </div>
     </div>
+</div>
 
-    <div class="modal fade" id="editarProductoModal" tabindex="-1" aria-labelledby="editarProductoModalLabel" aria-hidden="true">
-        <div class="modal-dialog">
-            <div class="modal-content">
+<!-- Modal Editar -->
+<div class="modal fade" id="modalEditar" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg rounded-4">
+            <div class="modal-header border-0 p-4">
+                <h5 class="modal-title fw-bold">Editar Producto</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-4 pt-0">
                 <form method="POST">
-                    <div class="modal-header">
-                        <h5 class="modal-title" id="editarProductoModalLabel">Editar Producto</h5>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    <input type="hidden" name="accion" value="editar">
+                    <input type="hidden" name="id_producto" id="edit_id">
+                    <div class="mb-3">
+                        <label class="fw-bold small text-muted mb-1">Nombre</label>
+                        <input type="text" class="form-control bg-light border-0 rounded-3" name="nombre"
+                            id="edit_nombre" required>
                     </div>
-                    <div class="modal-body">
-                        <input type="hidden" name="accion" value="editar">
-                        <input type="hidden" name="id_producto" id="editarIdProducto">
-                        <div class="mb-3">
-                            <label for="nombre" class="form-label">Nombre</label>
-                            <input type="text" class="form-control" name="nombre" id="editarNombre" required>
+                    <div class="row">
+                        <div class="col-6 mb-3">
+                            <label class="fw-bold small text-muted mb-1">Precio ($)</label>
+                            <input type="number" step="0.01" class="form-control bg-light border-0 rounded-3"
+                                name="precio" id="edit_precio" required>
                         </div>
-                        <div class="mb-3">
-                            <label for="descripcion" class="form-label">Descripción</label>
-                            <textarea class="form-control" name="descripcion" id="editarDescripcion" rows="3" required></textarea>
-                        </div>
-                        <div class="mb-3">
-                            <label for="precio" class="form-label">Precio</label>
-                            <input type="number" class="form-control" name="precio" id="editarPrecio" step="0.01" required>
-                        </div>
-                        <div class="mb-3">
-                            <label for="categoria" class="form-label">Categoría</label>
-                            <select class="form-select" name="categoria" id="editarCategoria" required>
-                                <?php foreach ($categorias as $categoria): ?>
-                                    <option value="<?php echo htmlspecialchars($categoria['id_categoria']); ?>"><?php echo htmlspecialchars($categoria['nombre']); ?></option>
-                                <?php endforeach; ?>
-                            </select>
+                        <div class="col-6 mb-3">
+                            <label class="fw-bold small text-muted mb-1">Stock</label>
+                            <input type="number" class="form-control bg-light border-0 rounded-3" name="stock"
+                                id="edit_stock" required>
                         </div>
                     </div>
-                    <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                        <button type="submit" class="btn btn-warning">Actualizar</button>
+                    <div class="mb-3">
+                        <label class="fw-bold small text-muted mb-1">Categoría</label>
+                        <select class="form-select bg-light border-0 rounded-3" name="categoria" id="edit_categoria"
+                            required>
+                            <?php foreach ($categorias as $c): ?>
+                                <option value="<?= $c['id_categoria'] ?>"><?= $c['nombre'] ?></option>
+                            <?php endforeach; ?>
+                        </select>
                     </div>
+                    <div class="mb-4">
+                        <label class="fw-bold small text-muted mb-1">Descripción</label>
+                        <input type="text" class="form-control bg-light border-0 rounded-3" name="descripcion"
+                            id="edit_descripcion">
+                    </div>
+                    <button type="submit" class="btn btn-primary w-100 py-2 rounded-pill fw-bold">Actualizar</button>
                 </form>
             </div>
         </div>
     </div>
+</div>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    <script>
-        function cargarDatosEditar(producto) {
-            document.getElementById('editarIdProducto').value = producto.id_producto;
-            document.getElementById('editarNombre').value = producto.nombre;
-            document.getElementById('editarDescripcion').value = producto.descripcion;
-            document.getElementById('editarPrecio').value = producto.precio;
-            
-            // Usamos el ID de la categoría (id_categoria) para preseleccionar la opción correcta
-            document.getElementById('editarCategoria').value = producto.id_categoria; 
-        }
-    </script>
-</body>
-</html>
+<script>
+    function editar(data) {
+        document.getElementById('edit_id').value = data.id_producto;
+        document.getElementById('edit_nombre').value = data.nombre;
+        document.getElementById('edit_precio').value = data.precio;
+        // Handle specific column name
+        document.getElementById('edit_stock').value = data.cantidad_stock !== undefined ? data.cantidad_stock : data.stock;
+        document.getElementById('edit_categoria').value = data.categoria;
+        document.getElementById('edit_descripcion').value = data.descripcion;
+    }
+</script>
+
+<?php include 'includes/footer.php'; ?>

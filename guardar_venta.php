@@ -29,9 +29,12 @@ $monto_tarjeta = floatval($data['monto_tarjeta'] ?? 0);
 
 // Normalizar método
 $metodo_lc = strtolower($metodo);
-if ($metodo_lc === 'efectivo') $metodo = 'Efectivo';
-elseif ($metodo_lc === 'tarjeta') $metodo = 'Tarjeta';
-else $metodo = ucfirst($metodo_lc);
+if ($metodo_lc === 'efectivo')
+    $metodo = 'Efectivo';
+elseif ($metodo_lc === 'tarjeta')
+    $metodo = 'Tarjeta';
+else
+    $metodo = ucfirst($metodo_lc);
 
 if (empty($items) || $total <= 0) {
     http_response_code(400);
@@ -112,13 +115,15 @@ try {
         // Si id_cliente es NULL, usamos SQL que inserta NULL literal
         $sql_venta = "INSERT INTO ventas (fecha, total, metodo_pago, estatus, id_empleado, id_cliente) VALUES (NOW(), ?, ?, ?, ?, NULL)";
         $stmt = mysqli_prepare($conn, $sql_venta);
-        if (!$stmt) throw new Exception("Prepare ventas (NULL cliente): " . mysqli_error($conn));
+        if (!$stmt)
+            throw new Exception("Prepare ventas (NULL cliente): " . mysqli_error($conn));
         mysqli_stmt_bind_param($stmt, "dssi", $total, $metodo, $estatus, $id_empleado);
     } else {
         // Si tenemos id_cliente válido, lo incluimos
         $sql_venta = "INSERT INTO ventas (fecha, total, metodo_pago, estatus, id_empleado, id_cliente) VALUES (NOW(), ?, ?, ?, ?, ?)";
         $stmt = mysqli_prepare($conn, $sql_venta);
-        if (!$stmt) throw new Exception("Prepare ventas (con cliente): " . mysqli_error($conn));
+        if (!$stmt)
+            throw new Exception("Prepare ventas (con cliente): " . mysqli_error($conn));
         mysqli_stmt_bind_param($stmt, "dssii", $total, $metodo, $estatus, $id_empleado, $id_cliente_valid);
     }
 
@@ -133,7 +138,8 @@ try {
     // Preparar inserción en detalles_ventas
     $sql_det = "INSERT INTO detalles_ventas (id_venta, id_producto, cantidad, precio_unitario) VALUES (?, ?, ?, ?)";
     $stmt_det = mysqli_prepare($conn, $sql_det);
-    if (!$stmt_det) throw new Exception("Prepare detalles_ventas: " . mysqli_error($conn));
+    if (!$stmt_det)
+        throw new Exception("Prepare detalles_ventas: " . mysqli_error($conn));
 
     foreach ($items as $it) {
         $id_producto = intval($it['id_producto'] ?? 0);
@@ -144,11 +150,23 @@ try {
             throw new Exception("Item inválido (id_producto o cantidad incorrectos).");
         }
 
+        // Insertar detalle
         mysqli_stmt_bind_param($stmt_det, "iiid", $id_venta, $id_producto, $cantidad, $precio_unitario);
         if (!mysqli_stmt_execute($stmt_det)) {
-            $err = mysqli_stmt_error($stmt_det);
-            throw new Exception("Execute detalle: " . $err);
+            throw new Exception("Error al guardar detalle: " . mysqli_stmt_error($stmt_det));
         }
+
+        // DESCONTAR STOCK
+        $sql_stock = "UPDATE productos SET cantidad_stock = cantidad_stock - ? WHERE id_producto = ?";
+        $stmt_stock = mysqli_prepare($conn, $sql_stock);
+        if (!$stmt_stock)
+            throw new Exception("Error preparando actualización de stock: " . mysqli_error($conn));
+
+        mysqli_stmt_bind_param($stmt_stock, "ii", $cantidad, $id_producto);
+        if (!mysqli_stmt_execute($stmt_stock)) {
+            throw new Exception("Error al descontar stock del producto ID $id_producto");
+        }
+        mysqli_stmt_close($stmt_stock);
     }
     mysqli_stmt_close($stmt_det);
 

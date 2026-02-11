@@ -1,46 +1,46 @@
 <?php
 session_start();
-include 'conexion.php';
-
-if (!isset($_SESSION['rol']) || $_SESSION['rol'] !== 'empleado') {
+if (!isset($_SESSION['rol']) || $_SESSION['rol'] !== 'administrador') {
     header("Location: login.php");
     exit();
 }
-
-if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_FILES['archivo_respaldo'])) {
-    $archivo = $_FILES['archivo_respaldo']['tmp_name'];
-
-    if (is_uploaded_file($archivo)) {
-        $comando = "mysql -u root -p [nombre_base_datos] < $archivo";
-        system($comando);
-        $mensaje = "Base de datos restaurada con éxito.";
-    } else {
-        $mensaje = "Error al subir el archivo.";
-    }
-}
 ?>
 
-<!DOCTYPE html>
-<html lang="es">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Restaurar Base de Datos</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-</head>
-<body>
-    <div class="container mt-5">
-        <h1 class="text-center text-primary">Restaurar Base de Datos</h1>
-        <form method="POST" enctype="multipart/form-data" class="mt-4">
-            <div class="mb-3">
-                <label for="archivo_respaldo" class="form-label">Subir archivo de respaldo (.sql):</label>
-                <input type="file" name="archivo_respaldo" id="archivo_respaldo" class="form-control">
-            </div>
-            <button type="submit" class="btn btn-primary">Restaurar</button>
-        </form>
-        <?php if (isset($mensaje)): ?>
-            <div class="alert alert-success mt-3"><?php echo $mensaje; ?></div>
-        <?php endif; ?>
+<?php include 'includes/header.php'; ?>
+
+<div class="d-flex justify-content-between align-items-center mb-4 fade-in">
+    <div>
+        <h2 class="fw-bold mb-1">Restauración de Sistema</h2>
+        <p class="text-muted">Recupera datos desde un archivo previo (Precaución).</p>
     </div>
-</body>
-</html>
+</div>
+
+<div class="row justify-content-center fade-in">
+    <div class="col-md-6">
+        <div class="card-premium p-5 text-center">
+            <div class="bg-warning bg-opacity-10 rounded-circle d-inline-flex p-4 mb-4 text-warning">
+                <i class="fa fa-history fa-4x"></i>
+            </div>
+            <h3 class="fw-bold mb-2">Cargar Archivo SQL</h3>
+            <p class="text-muted mb-4 px-4">Selecciona un archivo de respaldo (.sql) para restaurar la base de datos al
+                estado anterior.</p>
+
+            <form action="importar.php" method="POST" enctype="multipart/form-data">
+                <div class="mb-4 text-start bg-light p-3 rounded-4 border">
+                    <label class="text-muted small fw-bold text-uppercase mb-2">Archivo de Respaldo</label>
+                    <input type="file" class="form-control" name="backup_file" required>
+                </div>
+                <button type="submit" class="btn btn-warning w-100 py-3 rounded-pill fw-bold text-dark hover-lift">
+                    <i class="fa fa-upload me-2"></i> Iniciar Restauración
+                </button>
+            </form>
+            <div
+                class="alert alert-warning border-0 bg-warning bg-opacity-10 text-dark small mt-4 mb-0 rounded-3 text-start">
+                <i class="fa fa-exclamation-triangle me-2"></i> <strong>Advertencia:</strong> Esta acción sobrescribirá
+                los datos actuales. Asegúrate de tener un respaldo reciente antes de continuar.
+            </div>
+        </div>
+    </div>
+</div>
+
+<?php include 'includes/footer.php'; ?>
